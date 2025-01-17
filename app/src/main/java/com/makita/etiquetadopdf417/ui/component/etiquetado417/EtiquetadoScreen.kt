@@ -429,7 +429,7 @@ fun startBluetoothDiscovery(
     setDevices: (List<BluetoothDevice>) -> Unit
 ): BroadcastReceiver? {
     if (bluetoothAdapter == null) {
-        Log.e("BluetoothDiscovery", "El adaptador Bluetooth es nulo.")
+        Log.e("*MAKITA00*", "El adaptador Bluetooth es nulo.")
         return null
     }
 
@@ -440,7 +440,7 @@ fun startBluetoothDiscovery(
     val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val action = intent?.action
-            Log.d("*MAKITA*","BluetoothDevice.ACTION_FOUND ${BluetoothDevice.ACTION_FOUND}")
+            Log.d("*MAKITA00*","BluetoothDevice.ACTION_FOUND ${BluetoothDevice.ACTION_FOUND}")
             if (BluetoothDevice.ACTION_FOUND == action) {
                 val device: BluetoothDevice? = intent?.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
                 device?.let {
@@ -452,15 +452,15 @@ fun startBluetoothDiscovery(
                     ) {
                         it.name ?: "" // Obtener el nombre si hay permiso
                     } else {
-                        Log.w("BluetoothDiscovery", "Permiso BLUETOOTH_CONNECT no otorgado. Usando nombre vacío.")
-                        "" // Nombre vacío si no hay permiso
+                        Log.w("MAKITA00", "Permiso BLUETOOTH_CONNECT no otorgado. Usando nombre vacío.")
+                        ""
                     }
-                    Log.e("*MAKITA*", "isZebraPrinter. $deviceName")
+
                     // Filtrar impresoras Zebra
                     if (isZebraPrinter(deviceName) && !foundDevices.contains(it))
                     // if (  !foundDevices.contains(it))
                     {
-                        Log.e("*MAKITA*", "isZebraPrinter. $deviceName")
+                        Log.e("*MAKITA00*", "Dispositivos encontrados. $deviceName")
                         foundDevices.add(it)
                         setDevices(foundDevices)
                     }
@@ -515,9 +515,9 @@ fun BluetoothDeviceList(
 
     val context = LocalContext.current
     // Verifica el permiso BLUETOOTH_CONNECT en dispositivos con Android 12 (API 31) o superior
-    Log.d("*MAKITA*", " version blue 1")
+    Log.d("*MAKITA00*", " version blue 1")
 
-    val hasBluetoothConnectPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+    val hasBluetoothConnectPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
     {
         ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 
