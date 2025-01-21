@@ -1,24 +1,27 @@
+
+import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.os.Build
 import android.util.Log
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import android.Manifest
-import android.content.BroadcastReceiver
-import android.content.Intent
-import android.content.IntentFilter
-import android.os.Build
-import android.widget.Toast
-import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.outlined.Bluetooth
+import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,51 +30,36 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-
 import androidx.compose.ui.platform.LocalContext
-
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
-
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
+import com.makita.etiquetadopdf417.RetrofitClient.apiService
+import com.makita.etiquetadopdf417.ui.component.etiquetado417.BluetoothDeviceList
+import com.makita.etiquetadopdf417.ui.component.etiquetado417.prepararDatosImpresion
+import com.makita.etiquetadopdf417.ui.component.etiquetado417.printDataToBluetoothDevice
+import com.makita.etiquetadopdf417.ui.component.etiquetado417.startBluetoothDiscovery
 import com.makita.etiquetadopdf417.ui.theme.GreenMakita
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.IOException
-import java.util.UUID
+
 
 @Composable
-fun EtiquetadoScreen417() {
+fun EtiquetadoScreen417(navController: NavHostController) {
   //  var text by remember { mutableStateOf("") }
-    var showDialog by remember { mutableStateOf(false) }
+
     var text by remember { mutableStateOf(TextFieldValue("")) }
     var responseMessage by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
-    val context = LocalContext.current
-    var selectedPrinterName by remember { mutableStateOf("") }
 
-    var item by remember { mutableStateOf("") }
-    var serieInicio by remember { mutableStateOf("") }
-    var serieFinal by remember { mutableStateOf("") }
-    var letraFabrica by remember { mutableStateOf("") }
-    var ean by remember { mutableStateOf("") }
-
-    val (printers, setPrinters) = remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
-
-    var selectedDevice: BluetoothDevice? by remember { mutableStateOf(null) }
-
-    val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -98,115 +86,26 @@ fun EtiquetadoScreen417() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Titulo()
-            Separar()
-
-            EscanearCodigo(
+              EscanearCodigo(
                 text,
                 onValueChange = { newValue -> text = newValue },
                 responseMessage = responseMessage,
                 onScanSuccess = {
-                    Log.d("*MAKITA*", "Escaneo correcto")
+                    Log.d("ETIQUETADO-Z", "Escaneo correcto")
                     responseMessage = "" // Limpiar mensajes de error
                 },
-                onScanError = {
-                    Log.d("*MAKITA*", "Error en el escaneo")
-                    responseMessage = "El código escaneado es incorrecto."
+                onScanError = { errorMessage -> // Modificado para aceptar un mensaje dinámico
+                    Log.d("ETIQUETADO-Z", "Error en el escaneo: $errorMessage")
+                    responseMessage = errorMessage.toString()
                 },
-                focusRequester = focusRequester
+
+                onClearError = { responseMessage = "" }, // Limpiar el mensaje de error
+                focusRequester = focusRequester,
+                navController = navController
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick =
-            {
-                if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(
-                        (context as Activity),
-                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                        100
-                    )
-                }
-                else
-                {
-                    showDialog = true
-                    startBluetoothDiscovery(context, bluetoothAdapter, setPrinters)
-                }
-            },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor =  Color(0xFF00909E),
-                    contentColor = Color.White   // Color del texto
-                )
 
-            )
-            {
-                Text("Seleccionar Impresora Bluetooth")
-            }
-
-            // Diálogo de selección de dispositivos
-            if (showDialog) {
-                AlertDialog(
-                    onDismissRequest = { showDialog = false },
-                    title = { Text("Seleccione una impresora") },
-                    text = {
-                        BluetoothDeviceList(
-                            deviceList = printers,
-
-                            onDeviceSelected = { device ->
-                                selectedDevice = device
-                                selectedPrinterName = device.name ?: "Desconocida"
-                                showDialog = false
-                            }
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showDialog = false })
-                        {
-                            Log.d("*MAKITA*" , "Cierra modal")
-                            Text("Cerrar" )
-                        }
-                    }
-                )
-            }
-
-            if (selectedPrinterName.isNotEmpty()) {
-                Log.d("*MAKITA*" , "Impresora Seleccionada $selectedPrinterName")
-                Text("Impresora seleccionada: $selectedPrinterName", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
-
-            Button(
-                onClick = {
-                    selectedDevice?.let { device ->
-
-                        item =  text.text
-
-                        Log.d("*MAKITA*" , "este es el resultado de extractedText $item")
-                        val printerLanguage = "ZPL"  // Cambiar según el lenguaje soportado por la impresora
-
-                        val codigoCargador = (item.trim() ?: "").padEnd(20, '0') + (serieInicio?.trim() ?: "").padEnd(10, '0') + (serieFinal?.trim() ?: "").padEnd(10, '0') + (letraFabrica?.trim() ?: "").padEnd(13, '0') + "0" + (serieInicio?.trim() ?: "").padEnd(10, '0') // CodigoChile"0000000000" +    // Codigo Comercial"000000000000000000000000000000"  // Nro Proforma
-                        printDataToBluetoothDevice(device, item, context, printerLanguage, serieInicio , codigoCargador,"AA")
-                        item = ""
-                        serieInicio = ""
-                        serieFinal = ""
-                        letraFabrica = ""
-                        ean = ""
-
-                    }
-                },
-
-                colors = ButtonDefaults.buttonColors(
-                    containerColor =  Color(0xFF00909E),
-                    contentColor = Color.White   // Color del texto
-                ),
-                enabled = selectedDevice != null
-            ) {
-                Text(
-                    text = "Imprimir",
-                    style = TextStyle(
-                        fontSize = 14.sp,
-                        letterSpacing = 1.5.sp,
-                    ),
-
-                )
-            }
         }
     }
 }
@@ -219,19 +118,37 @@ fun EscanearCodigo(
     onValueChange: (TextFieldValue) -> Unit,
     responseMessage: String,
     onScanSuccess: () -> Unit,
-    onScanError: () -> Unit,
-    focusRequester: FocusRequester
+    onScanError: (Any?) -> Unit,
+    focusRequester: FocusRequester,
+    onClearError: () -> Unit,
+    navController : NavController// Nuevo parámetro para limpiar el mensaje de error
 ) {
-    // Estado para controlar si los campos deben mostrarse
+    val context = LocalContext.current
     var isScanned by remember { mutableStateOf(false) }
     var pdf417Image by remember { mutableStateOf<Bitmap?>(null) }
+    var equivalenciasList by remember { mutableStateOf(listOf<String>()) }
+    var cargador by remember { mutableStateOf("") }
+    var bateria by remember { mutableStateOf("") }
 
-    Log.d("*MAKITA*", "EscanearCodigo ${scannedText.text}")
+    var itemAnterior by remember { mutableStateOf("") }
+    var serieDesde by remember { mutableStateOf("") }
+    var serieHasta by remember { mutableStateOf("") }
+    var letraFabrica by remember { mutableStateOf("") }
+    var ean by remember { mutableStateOf("") }
+    var itemEquivalente by remember { mutableStateOf("") }
+    val showDialog by remember { mutableStateOf(false) }
+
+
+    var selectedItem by remember { mutableStateOf("") }
+    val scrollState = rememberScrollState()
 
     Column(
       //  horizontalAlignment = Alignment.CenterHorizontally, // Alineación horizontal de los elementos
         verticalArrangement = Arrangement.spacedBy(1.dp), // Espaciado entre los elementos verticalmente
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(scrollState) // Activar scroll vertical
+            .padding(horizontal = 16.dp), // Margen horizontal
     ) {
         // Campo de texto para escanear
         TextField(
@@ -244,6 +161,24 @@ fun EscanearCodigo(
                 .padding(12.dp)
                 .focusRequester(focusRequester),
             singleLine = true,
+            trailingIcon = {
+                IconButton(
+                    onClick = {
+                        // Limpiar texto escaneado y mensaje de error
+                        onValueChange(TextFieldValue("")) // Limpia el texto escaneado
+                        onClearError() // Llama a la función para limpiar el mensaje de error
+                        isScanned= false
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete, // Usa el ícono de basurero predeterminado
+                        contentDescription = "Limpiar",
+                        tint = Color.Red
+                    )
+                }
+
+
+            }
         )
 
         // Mostrar mensaje de error si el código es incorrecto
@@ -260,8 +195,16 @@ fun EscanearCodigo(
 
         // Mostrar los campos solo si se ha escaneado un código
         if (isScanned) {
+            itemAnterior = scannedText.text.substring(0, 20).trim()
+            serieDesde = scannedText.text.substring(20, 29)
+            serieHasta =scannedText.text.substring(20, 29)
+            letraFabrica = scannedText.text.substring(38,39)
+            ean = scannedText.text.substring(39,55)
+
+            itemEquivalente = scannedText.text.substring(0, 20).trim()
+
             OutlinedTextField(
-                value = scannedText.text.substring(0, 20).trim(),
+                value = itemAnterior,
                 onValueChange = { /* No se permite la edición */ },
                 label = { Text("ITEM", color = GreenMakita, fontWeight = FontWeight.Bold ) },
                 readOnly = true, // Campo de solo lectura
@@ -285,13 +228,12 @@ fun EscanearCodigo(
             // Espacio entre campos
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Fila para "Serie Desde" y "Serie Hasta"
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp), // Espacio entre los elementos
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
-                    value = scannedText.text.substring(20, 29),
+                    value = serieDesde,
                     onValueChange = { /* No se permite la edición */ },
                     label = {
                         Text("SERIE DESDE",
@@ -316,7 +258,7 @@ fun EscanearCodigo(
                 )
 
                 OutlinedTextField(
-                    value = scannedText.text.substring(20, 29),
+                    value = serieHasta,
                     onValueChange = { /* No se permite la edición */ },
                     label = { Text("SERIE HASTA" , color = GreenMakita,
                         fontWeight = FontWeight.Bold ) },
@@ -340,7 +282,7 @@ fun EscanearCodigo(
             }
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(
-                    value = scannedText.text.substring(39).trim(),
+                    value = ean,
             onValueChange = { /* No se permite la edición */ },
             label = {
                 Text("EAN",
@@ -362,24 +304,66 @@ fun EscanearCodigo(
                     unfocusedBorderColor = GreenMakita,   // Borde sin enfoque en GreenMakita
                 )
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            ClassicComboBox(
+                items = equivalenciasList,
+                selectedItem = selectedItem,
+                onItemSelected = { selectedItem = it }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            if (selectedItem.isNotEmpty()) {
+                Cargador(cargador)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (!bateria.isNullOrBlank() || !bateria.isNullOrEmpty()) {
+                    Bateria(bateria)
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                FooterButton(context,  navController ,itemAnterior ,serieDesde,serieHasta,ean, letraFabrica, selectedItem , cargador  , bateria  )
+            }
+
         }
     }
 
-
-
-
     // Llamar a onScanSuccess cuando el escaneo sea correcto
     LaunchedEffect(scannedText.text) {
-        // Solo validar si el texto no está vacío y ha cambiado
         if (scannedText.text.isNotEmpty()) {
             if (scannedText.text.length > 50) {
-                onScanSuccess()
-                isScanned = true // Hacer visibles los campos de texto
-                pdf417Image = generarPDF417(scannedText.text) // Generar y mostrar el PDF417
+                // Llamada al servicio API cuando el escaneo es correcto
+                try {
+
+
+                    // Llamada a la API, reemplaza `getData` con la función que uses para hacer la solicitud
+                    val response = apiService.getEquivalencias(scannedText.text.substring(0,20).trim()) // Asegúrate de definir este método en tu servicio
+
+                    Log.d("*ETIQUETADO-Z" , "Response : $response"  )
+                    if (response.isNotEmpty()) {
+                        equivalenciasList = response.map { it.equivalenciaItem }
+                        cargador = response.firstOrNull()?.cargador ?: "" // Obtén el primer elemento o una cadena vacía si la lista está vacía
+                        bateria = response.firstOrNull()?.bateria ?: ""
+                        onScanSuccess()
+                        isScanned = true
+                        pdf417Image = generarPDF417(scannedText.text)
+                    } else {
+                        // Si la respuesta falla, mostrar mensaje de error
+                        onScanError("No se encontraron equivalencias para el código proporcionado.")
+                        isScanned = false
+                        pdf417Image = null
+
+                    }
+                } catch (e: Exception) {
+                    // Manejo de excepciones si la llamada falla
+                    Log.e("*ETIQUETADO-Z", "Error al hacer la llamada a la API: ${e.message}")
+                    onScanError("Servicio no disponible")
+                    isScanned = false
+                    pdf417Image = null
+                }
             } else {
-                onScanError() // Invocar el callback de error
+                onScanError("Codigo incorrecto")
                 isScanned = false
-                pdf417Image = null // Limpiar la imagen si el escaneo no es válido
+                pdf417Image = null
             }
         }
     }
@@ -388,254 +372,405 @@ fun EscanearCodigo(
 
 @Composable
 fun Titulo() {
-    Text(
-        text = "GENERAR ETIQUETA ITEM Z ",
-        fontSize = 20.sp,
-        fontWeight = FontWeight.Bold,
+    Column(
         modifier = Modifier
-            .width(500.dp)
-            .height(70.dp)
-            .padding(top = 40.dp)
-            .padding(start = 50.dp),
-        color = Color(0xFF00909E)
-    )
+            .wrapContentHeight() // Ajusta solo a la altura del contenido
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Top,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "EQUIS-Z",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF00909E),
+            textAlign = TextAlign.Center
+        )
+
+        Divider(
+            color = Color(0xFFFF7F50),
+            thickness = 2.dp,
+            modifier = Modifier
+                .padding(vertical = 8.dp)
+        )
+    }
 }
 
-@Composable
-fun Separar() {
-    Divider(
-        color = Color(0xFFFF7F50),
-        thickness = 2.dp,
-        modifier = Modifier
-            .padding(vertical = 16.dp)
-            .padding(10.dp),
-    )
-}
 
 private fun generarPDF417(texto: String): Bitmap? {
     return try {
         val barcodeEncoder = BarcodeEncoder()
         barcodeEncoder.encodeBitmap(texto, BarcodeFormat.PDF_417, 600, 300) // Puedes ajustar las dimensiones según necesites
     } catch (e: Exception) {
-        Log.e("EscanearCodigo", "Error generando PDF417: ${e.message}")
+        Log.e("ETIQUETADO-Z", "Error generando PDF417: ${e.message}")
         null
     }
 }
 
 
-fun startBluetoothDiscovery(
-    context: Context,
-    bluetoothAdapter: BluetoothAdapter?,
-    setDevices: (List<BluetoothDevice>) -> Unit
-): BroadcastReceiver? {
-    if (bluetoothAdapter == null) {
-        Log.e("*MAKITA00*", "El adaptador Bluetooth es nulo.")
-        return null
-    }
-
-    // Lista para almacenar dispositivos encontrados
-    val foundDevices = mutableListOf<BluetoothDevice>()
-
-    // Receptor para dispositivos encontrados
-    val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val action = intent?.action
-            Log.d("*MAKITA00*","BluetoothDevice.ACTION_FOUND ${BluetoothDevice.ACTION_FOUND}")
-            if (BluetoothDevice.ACTION_FOUND == action) {
-                val device: BluetoothDevice? = intent?.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                device?.let {
-                    // Manejo seguro del nombre del dispositivo
-                    val deviceName: String = if (ActivityCompat.checkSelfPermission(
-                            context!!,
-                            Manifest.permission.BLUETOOTH_CONNECT
-                        ) == PackageManager.PERMISSION_GRANTED
-                    ) {
-                        it.name ?: "" // Obtener el nombre si hay permiso
-                    } else {
-                        Log.w("MAKITA00", "Permiso BLUETOOTH_CONNECT no otorgado. Usando nombre vacío.")
-                        ""
-                    }
-
-                    // Filtrar impresoras Zebra
-                    if (isZebraPrinter(deviceName) && !foundDevices.contains(it))
-                    // if (  !foundDevices.contains(it))
-                    {
-                        Log.e("*MAKITA00*", "Dispositivos encontrados. $deviceName")
-                        foundDevices.add(it)
-                        setDevices(foundDevices)
-                    }
-                }
-            }
-        }
-    }
-
-    // Registrar el receptor para detectar dispositivos Bluetooth
-    val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
-    context.registerReceiver(receiver, filter)
-
-    // Manejo explícito de permisos
-    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN)
-        != PackageManager.PERMISSION_GRANTED
-    ) {
-        Log.e("BluetoothDiscovery", "Permisos insuficientes para escaneo Bluetooth.")
-        ActivityCompat.requestPermissions(
-            context as Activity,
-            arrayOf(Manifest.permission.BLUETOOTH_SCAN),
-            1001
-        )
-        return null
-    }
-
-    try {
-        if (!bluetoothAdapter.startDiscovery()) {
-            Log.e("BluetoothDiscovery", "No se pudo iniciar el descubrimiento Bluetooth.")
-            context.unregisterReceiver(receiver)
-            return null
-        }
-    } catch (e: SecurityException) {
-        Log.e("BluetoothDiscovery", "Error al iniciar el descubrimiento: ${e.message}")
-        context.unregisterReceiver(receiver)
-        return null
-    }
-
-    return receiver
-}
-
-private fun isZebraPrinter(deviceName: String): Boolean {
-    return deviceName.contains("Zebra", ignoreCase = true) ||
-            deviceName.startsWith("ZQ", ignoreCase = true)
-}
-
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BluetoothDeviceList(
-    deviceList: List<BluetoothDevice>,
-    onDeviceSelected: (BluetoothDevice) -> Unit
+fun ClassicComboBox(
+    items: List<String>, // Lista de elementos para el ComboBox
+    selectedItem: String, // Elemento seleccionado
+    onItemSelected: (String) -> Unit // Callback para manejar la selección
 ) {
+    var expanded by remember { mutableStateOf(false) } // Controla si el menú está desplegado o no
 
-    val context = LocalContext.current
-    // Verifica el permiso BLUETOOTH_CONNECT en dispositivos con Android 12 (API 31) o superior
-    Log.d("*MAKITA00*", " version blue 1")
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = selectedItem, // Mostrar el elemento seleccionado
+            onValueChange = {}, // No permitimos escribir manualmente
+            label = { Text("SELECCIONE EQUIVALENCIA" , color = GreenMakita,
+            fontWeight = FontWeight.Bold) },
+            readOnly = true, // Solo lectura
+            trailingIcon = {
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ArrowDropDown else Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.clickable { expanded = !expanded } // Abrir o cerrar menú
+                )
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = true } // Abrir menú al hacer clic
+                .background(Color.White, shape = RoundedCornerShape(12.dp)),
+            shape = RoundedCornerShape(12.dp), // Bordes redondeados
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.White, // Fondo al estar enfocado
+                unfocusedContainerColor = Color.White, // Fondo al estar desenfocado
+                focusedIndicatorColor = Color(0xFFCCCCCC), // Color del borde enfocado (gris claro)
+                unfocusedIndicatorColor = Color(0xFFDDDDDD), // Color del borde no enfocado (muy claro)
+                cursorColor = GreenMakita // Color del cursor
+            ),
+            textStyle = TextStyle(
+                fontSize = 18.sp, // Tamaño del texto
+                color = Color.Red, // Color del texto
+                fontFamily = FontFamily.Serif, // Familia de fuentes
+                fontWeight = FontWeight.Bold // Peso de la fuente
+            )
+        )
 
-    val hasBluetoothConnectPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-    {
-        ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+        DropdownMenu(
+            expanded = expanded, // Controla si se muestra o no
+            onDismissRequest = { expanded = false }, // Cerrar menú al hacer clic fuera
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White, shape = RoundedCornerShape(12.dp))
 
-    } else
-    {
-        Log.d("*MAKITA*", " si tiene permiso")
-        true // No se requiere permiso en versiones anteriores
-    }
-
-
-
-    // Solo muestra la lista si el permiso es otorgado o si el sistema no lo requiere
-    if (hasBluetoothConnectPermission) {
-        LazyColumn(modifier = Modifier.fillMaxHeight()) {
-            items(deviceList) { device ->
-                Text(
-                    text = device.name ?: "Dispositivo desconocido",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onDeviceSelected(device) }
-                        .padding(8.dp)
+        ) {
+            items.forEach { item ->
+                DropdownMenuItem(
+                    onClick = {
+                        onItemSelected(item) // Llamar al callback con el elemento seleccionado
+                        expanded = false // Cerrar el menú
+                    },
+                    text = {
+                        Text(
+                            text = item,
+                            color = Color.Black,
+                            modifier = Modifier.padding(8.dp),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 )
             }
         }
-    } else {
-        // Mostrar mensaje o manejar el caso en el que no se tiene el permiso
-        Log.d("*MAKITA*", " permisos blue")
-        Text("Permiso Bluetooth no otorgado. No se pueden mostrar los dispositivos.")
     }
 }
 
-
-@RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
-fun printDataToBluetoothDevice(
-    device: BluetoothDevice,
-    data: String,
-    context: Context,
-    printerLanguage: String , // Lenguaje de Programacion Zebra  ZPL (ZPL, CPCL o ESC/POS)
-    comercial: String,
-    CodigoConcatenado: String,
-    CodigocomercialNN: String
-) {
-    val MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")
-
-    CoroutineScope(Dispatchers.IO).launch {
-        try {
-            // Conectar al dispositivo Bluetooth
-            val bluetoothSocket = device.createRfcommSocketToServiceRecord(MY_UUID)
-            bluetoothSocket.connect()
-
-            if (bluetoothSocket.isConnected)
-            {
-                val outputStream = bluetoothSocket.outputStream
-
-                // Enviar los datos de impresión
-                Log.d("*MAKITA*", "printDataToBluetoothDevice $data")
-                 // Enviar comando de finalización si es ZPL o CPCL
-                if (printerLanguage == "ZPL")
-                {
-
-                    Log.d("*MAKITA*", "Imprimir  $CodigoConcatenado")
-
-                    val linea2 = "^XA\n " +
-                            "^PW354 \n" +   // Ancho de la etiqueta (3 cm = 354 dots)
-                            "^LL354 \n" +
-                            "^FO50,25\n " +
-                            "^ADN,15,13\n " +
-                            "^FD$data^FS\n " +
-                            "^FO50,70\n " +
-                            "^ADN,15,12\n " +
-                            "^B7N,5,10,2,20,N" +
-                            "^FD$CodigoConcatenado^FS " +
-                            "^FO50,190\n " +
-                            "^ADN,15,13\n " +
-                            "^FD$CodigocomercialNN^FS\n " +
-                            "^XZ\n"
-
-                    outputStream.write(linea2.toByteArray(Charsets.US_ASCII))
-                    outputStream.flush()
-
-                }
-
-                // Mostrar un mensaje de éxito
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Impresión Correcta", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                // Si no se pudo conectar, mostrar un mensaje de error
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "No se pudo conectar al dispositivo Bluetooth", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-        catch (e: Exception)
-        {
-            e.printStackTrace()
-            // Manejo de errores
-            withContext(Dispatchers.Main)
-            {
-                Log.e("Bluetooth", "Error al enviar datos: ${e.message}")
-
-            }
-        }
-        finally
-        {
-            try
-            {
-                Log.e("Bluetooth", "Final de Bluetooth")
-            } catch (e: IOException) {
-                e.printStackTrace()
-                Log.e("Bluetooth", "Error al cerrar el socket: ${e.message}")
-            }
-        }
-    }
-}
-
-@Preview(showBackground = true)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PreviewEtiquetadoScreen417() {
-    EtiquetadoScreen417()
+fun Cargador(selectedItem: String) {
+
+    OutlinedTextField(
+        value = selectedItem,
+        onValueChange = { /* No se permite la edición */ },
+        label = { Text("CARGADOR ASIGNADO", color = GreenMakita, fontWeight = FontWeight.Bold ) },
+        readOnly = true, // Campo de solo lectura
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(70.dp),
+        shape = RoundedCornerShape(12.dp),
+        textStyle = TextStyle(
+            fontSize = 18.sp, // Tamaño del texto
+            color = Color.Red, // Color del texto
+            fontFamily = FontFamily.Serif, // Familia de fuentes
+            fontWeight = FontWeight.Bold // Peso de la fuente
+        ),
+        enabled = false,
+        colors = TextFieldDefaults.outlinedTextFieldColors(
+            focusedBorderColor = Color(0xFF00909E),
+            unfocusedBorderColor = Color.Gray
+        )
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun Bateria(selectedItem: String) {
+
+    OutlinedTextField(
+        value = selectedItem,
+        onValueChange = { /* No se permite la edición */ },
+        label = { Text("BATERIA ASIGNADA", color = GreenMakita, fontWeight = FontWeight.Bold ) },
+        readOnly = true, // Campo de solo lectura
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(70.dp),
+        shape = RoundedCornerShape(12.dp),
+        textStyle = TextStyle(
+            fontSize = 18.sp, // Tamaño del texto
+            color = Color.Red, // Color del texto
+            fontFamily = FontFamily.Serif, // Familia de fuentes
+            fontWeight = FontWeight.Bold // Peso de la fuente
+        ),
+        enabled = false,
+        colors = TextFieldDefaults.outlinedTextFieldColors(
+            focusedBorderColor = Color(0xFF00909E),
+            unfocusedBorderColor = Color.Gray
+        )
+    )
+}
+
+@Composable
+fun FooterButton(
+    context: Context,
+    navController: NavController,
+    itemAnterior: String ,
+    serieDesde: String ,
+    serieHasta: String ,
+    ean: String ,
+    letraFabrica: String,
+    selectedItem : String ,
+    cargador : String ,
+    bateria : String ) {
+    Column(
+        //  horizontalAlignment = Alignment.CenterHorizontally, // Alineación horizontal de los elementos
+        verticalArrangement = Arrangement.spacedBy(1.dp), // Espaciado entre los elementos verticalmente
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp), // Margen horizontal
+    ) {
+        val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+        val (printers, setPrinters) = remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
+        var showDialog by remember { mutableStateOf(false) }
+        var selectedPrinterName by remember { mutableStateOf("") }
+        var selectedDevice: BluetoothDevice? by remember { mutableStateOf(null) }
+
+        val (textoImpresion, dataPdf417) = prepararDatosImpresion(
+            itemAnterior,
+            serieDesde,
+            serieHasta,
+            letraFabrica,
+            ean,
+            selectedItem,
+            cargador,
+            bateria
+        )
+
+        FloatingActionButton(
+            onClick = {
+                if (ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    ActivityCompat.requestPermissions(
+                        (context as Activity),
+                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                        100
+                    )
+                } else {
+                    showDialog = true
+                    startBluetoothDiscovery(context, bluetoothAdapter, setPrinters)
+                }
+            },
+            containerColor = Color(0xFF00909E),
+            contentColor = Color.White,
+            modifier = Modifier
+                .height(56.dp)
+                .width(200.dp) // Botón ancho para icono y texto
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(horizontal = 8.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Bluetooth,
+                    contentDescription = "Conectarse a Bluetooth",
+                    modifier = Modifier.size(28.dp)
+                )
+                Text(
+                    text = "Conectarse",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Diálogo de selección de dispositivos
+        if (showDialog) {
+            AlertDialog(
+                onDismissRequest = { showDialog = false },
+                title = { Text("Seleccione una impresora") },
+                text = {
+                    BluetoothDeviceList(
+                        deviceList = printers,
+                        onDeviceSelected = { device ->
+                            selectedDevice = device
+                            selectedPrinterName = device.name ?: "Desconocida"
+                            showDialog = false
+                        }
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { showDialog = false }) {
+                        Text("Cerrar")
+                    }
+                }
+            )
+        }
+
+        // Mensaje de impresora seleccionada y botón de imprimir
+        if (selectedPrinterName.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Impresora seleccionada: $selectedPrinterName",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.Start)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Botón flotante para imprimir
+            FloatingActionButton(
+                onClick = {
+                    selectedDevice?.let { device ->
+                        val printerLanguage =
+                            "ZPL" // Cambiar según el lenguaje soportado por la impresora
+                        printDataToBluetoothDevice(
+                            navController,
+                            device,
+                            dataPdf417,
+                            context,
+                            printerLanguage,
+                            itemAnterior,
+                            serieDesde,
+                            serieHasta,
+                            letraFabrica,
+                            ean,
+                            cargador,
+                            selectedItem,
+                            bateria
+                        )
+                    }
+                },
+                containerColor = Color(0xFF00909E),
+                contentColor = Color.White,
+                modifier = Modifier
+                    .height(56.dp)
+                    .width(200.dp),
+
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.Print,
+                        contentDescription = "Imprimir",
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Text(
+                        text = "Imprimir",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+
+
+    @Composable
+    fun BluetoothDeviceList(
+        deviceList: List<BluetoothDevice>,
+        onDeviceSelected: (BluetoothDevice) -> Unit
+    ) {
+
+        val context = LocalContext.current
+        // Verifica el permiso BLUETOOTH_CONNECT en dispositivos con Android 12 (API 31) o superior
+        Log.d("ETIQUETADO-Z", "BluetoothDeviceList")
+
+        val hasBluetoothConnectPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) == PackageManager.PERMISSION_GRANTED
+
+        } else {
+            Log.d("ETIQUETADO-Z", "permisos OK")
+            true // No se requiere permiso en versiones anteriores
+        }
+
+
+        // Solo muestra la lista si el permiso es otorgado o si el sistema no lo requiere
+        if (hasBluetoothConnectPermission) {
+            LazyColumn(modifier = Modifier.fillMaxHeight()) {
+                items(deviceList) { device ->
+                    Text(
+                        text = device.name ?: "Dispositivo desconocido",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onDeviceSelected(device) }
+                            .padding(8.dp)
+                    )
+                }
+            }
+        } else {
+            // Mostrar mensaje o manejar el caso en el que no se tiene el permiso
+            Log.d("ETIQUETADO-Z", " Permisos Denegados")
+            Text("Permiso Bluetooth no otorgado. No se pueden mostrar los dispositivos.")
+        }
+    }
+
+
+    fun prepararDatosImpresion(
+        textoAnterior: String,
+        serieDesde: String,
+        serieHasta: String,
+        letraFabrica: String,
+        ean: String,
+        itemEquivalente: String,
+        cargador: String,
+        bateria: String
+    ): Pair<String, String> {
+
+        val itemNuevo = itemEquivalente.padEnd(20, '0')
+        val dataPdf417 = "$itemNuevo$serieDesde$serieHasta$letraFabrica$ean$cargador"
+        // Creamos una variable StringBuilder para armar el texto final
+        val textoFinal = StringBuilder()
+
+
+        val serieDesde = serieDesde
+        val serieHasta = serieHasta
+        val letraFabrica = letraFabrica
+        val ean = ean
+
+        Log.d("ETIQUETADO-Z", "dataPdf417 remacterizado: $dataPdf417")
+
+        // Agregamos las variables separadas por comas (formato CSV)
+        textoFinal.append("$textoAnterior,$serieDesde,$serieHasta,$letraFabrica,$ean,$itemEquivalente,$cargador,$bateria")
+        Log.d("ETIQUETADO-Z", "textoFinal : $textoFinal")
+
+
+        // Retornamos el texto final como un String
+        return Pair(textoFinal.toString(), dataPdf417)
+    }
 }
