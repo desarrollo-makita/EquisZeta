@@ -53,6 +53,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
+import com.makita.etiquetadopdf417.ApiService
+import com.makita.etiquetadopdf417.RegistraBitacoraEquisZ
+import com.makita.etiquetadopdf417.RetrofitClient
 import com.makita.etiquetadopdf417.RetrofitClient.apiService
 import com.makita.etiquetadopdf417.ui.theme.GreenMakita
 import kotlinx.coroutines.CoroutineScope
@@ -906,6 +909,11 @@ fun ButtonImprimir(
                             printerLanguage,
                             itemAnterior,
                             cargador,
+                            serieDesde,
+                            serieDesde,
+                            ean ,
+                            letraFabrica ,
+                            bateria,
                             onPrintSuccess
                         )
 
@@ -948,17 +956,34 @@ fun ButtonImprimir(
 }
 
 
+
+/*
+*   device,
+    dataPdf417,
+    selectedItem,
+    context,
+    printerLanguage,
+    itemAnterior,
+    cargador,
+    onPrintSuccess
+* */
+
 @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
 fun printDataToBluetoothDevice(
-
     device: BluetoothDevice,
     data: String,
     selectedItem: String,
     context: Context,
     printerLanguage: String,
-    itemNuevo: String,
+    itemAnterior: String,
     cargador: String,
+    serieDesde : String,
+    serieHasta: String,
+    ean : String,
+    letraFabrica :String,
+    bateria: String,
     onPrintSuccess: () -> Unit
+
 
 ) {
     val MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")
@@ -1016,6 +1041,30 @@ fun printDataToBluetoothDevice(
                     outputStream.write(linea2.toByteArray(Charsets.US_ASCII))
                     outputStream.flush()
                     Log.d("Bluetooth", "Datos enviados correctamente.")
+                    // Preparar los datos para enviar al endpoint
+                    val bitacora = RegistraBitacoraEquisZ(
+                        itemAnterior = itemAnterior,
+                        serieDesde = serieDesde, // Ejemplo, ajustar según tus datos
+                        serieHasta = serieHasta, // Ejemplo, ajustar según tus datos
+                        letraFabrica =letraFabrica,   // Ejemplo, ajustar según tus datos
+                        ean = ean,
+                        itemNuevo = selectedItem,
+                        cargador = cargador,
+                        bateria = bateria // Ejemplo, ajustar según tus datos
+                    )
+
+                    // Llamar al endpoint
+
+                    try {
+                        val response = apiService.insertaDataEquisZ(bitacora)
+
+                            Log.d("API", "Datos insertados correctamente en la bitácora. $response")
+
+                            Log.e("API", "Error al insertar datos: $response")
+
+                    } catch (e: Exception) {
+                        Log.e("API", "Error al llamar al endpoint: ${e.message}")
+                    }
                     onPrintSuccess()
 
                 }
