@@ -851,15 +851,6 @@ fun ButtonImprimir(
     Log.d("ButtonImprimir", "Datos recibidos - itemAnterior: $itemAnterior, serieDesde: $serieDesde, serieHasta: $serieHasta, ean: $ean, letraFabrica: $letraFabrica, selectedItem: $selectedItem, cargador: $cargador, bateria: $bateria")
     Log.d("ButtonImprimir", "Texto Impresión: $textoImpresion, Data PDF417: $dataPdf417")
 
-    val logMessage1 = "Datos recibidos - itemAnterior: $itemAnterior, serieDesde: $serieDesde, serieHasta: $serieHasta, ean: $ean, letraFabrica: $letraFabrica, selectedItem: $selectedItem, cargador: $cargador, bateria: $bateria"
-    val logMessage2 = "Texto Impresión: $textoImpresion, Data PDF417: $dataPdf417"
-    Log.d("ButtonImprimir", logMessage1)
-    Log.d("ButtonImprimir", logMessage2)
-
-    // Escribir en el archivo de log
-    writeLogToFile(context, logMessage1)
-    writeLogToFile(context, logMessage2)
-
     // Verifica el permiso BLUETOOTH_CONNECT antes de permitir la impresión
     val hasBluetoothConnectPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         ContextCompat.checkSelfPermission(
@@ -888,14 +879,14 @@ fun ButtonImprimir(
         ExtendedFloatingActionButton(
             onClick = {
                 Log.d("ButtonImprimir", "Botón Imprimir presionado.")
-                writeLogToFile(context, "Botón Imprimir presionado.")
+
                 if (hasBluetoothConnectPermission) {
                     Log.d("ButtonImprimir", "Permiso Bluetooth otorgado.")
-                    writeLogToFile(context, "Permiso Bluetooth otorgado.")
+
                     selectedDevice?.let { device ->
                         val printerLanguage = "ZPL" // Cambiar según el lenguaje soportado por la impresora
                         Log.d("ButtonImprimir", "Dispositivo seleccionado: ${device.name}, Dirección: ${device.address}")
-                        writeLogToFile(context, "Dispositivo seleccionado: ${device.name}, Dirección: ${device.address}")
+
                         printDataToBluetoothDevice(
                             device,
                             dataPdf417,
@@ -956,7 +947,6 @@ fun printDataToBluetoothDevice(
     val MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")
 
     Log.d("printDataToBluetoothDevice", "Datos recibidos - itemNuevo: $itemNuevo, data: $data, cargador: $cargador")
-    writeLogToFile(context, "Datos recibidos - itemNuevo: $itemNuevo, data: $data, cargador: $cargador")
 
     val data2 = itemNuevo
     val CodigoConcatenado2 = data
@@ -973,20 +963,18 @@ fun printDataToBluetoothDevice(
         try {
             // Conectar al dispositivo Bluetooth
             Log.d("Bluetooth", "Intentando conectar al dispositivo ${device.name}, dirección ${device.address}")
-            writeLogToFile(context, "Intentando conectar al dispositivo ${device.name}, dirección ${device.address}")
+
 
             val bluetoothSocket = device.createRfcommSocketToServiceRecord(MY_UUID)
             bluetoothSocket.connect()
 
             if (bluetoothSocket.isConnected) {
                 Log.d("Bluetooth", "Conexión exitosa.")
-                writeLogToFile(context, "Conexión exitosa.")
 
                 val outputStream = bluetoothSocket.outputStream
 
                 // Enviar los datos de impresión
                 Log.d("ETIQUETADO-Z", "Enviando datos de impresión: $CodigoConcatenado2")
-                writeLogToFile(context, "Enviando datos de impresión: $CodigoConcatenado2")
 
                 if (printerLanguage == "ZPL") {
                     val linea2 = "^XA\n " +
@@ -1011,13 +999,13 @@ fun printDataToBluetoothDevice(
                     outputStream.write(linea2.toByteArray(Charsets.US_ASCII))
                     outputStream.flush()
                     Log.d("Bluetooth", "Datos enviados correctamente.")
-                    writeLogToFile(context, "Datos enviados correctamente.")
+
                 }
 
                 // Mensaje de éxito
                 withContext(Dispatchers.Main) {
                     Log.d("ETIQUETADO-Z", "Impresión realizada con éxito.")
-                    writeLogToFile(context, "Impresión realizada con éxito.")
+
                     Toast.makeText(context, "Impresión Correcta", Toast.LENGTH_SHORT).show()
 
 
@@ -1061,7 +1049,7 @@ private fun generarPDF417(texto: String): Bitmap? {
     }
 }
 fun writeLogToFile(context: Context, logMessage: String) {
-    try {
+  /*  try {
         // Obtener el archivo de log
         val logFile = File(context.filesDir, "imprimir_logs.txt")
 
@@ -1081,11 +1069,18 @@ fun writeLogToFile(context: Context, logMessage: String) {
 
     } catch (e: IOException) {
         e.printStackTrace()
-    }
+    }*/
 }
 
 
-
+fun deleteLogFile(context: Context): Boolean {
+    val logFile = File(context.filesDir, "imprimir_logs.txt")
+    return if (logFile.exists()) {
+        logFile.delete()
+    } else {
+        false // Indica que el archivo no existía
+    }
+}
 
 @Preview(showBackground = true)
 @Composable
