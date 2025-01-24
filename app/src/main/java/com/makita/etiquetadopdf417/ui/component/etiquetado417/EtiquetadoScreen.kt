@@ -127,11 +127,11 @@ fun EtiquetadoScreen417(navController: NavHostController) {
                     responseMessage = errorMessage.toString()
                 },
 
-                onClearError = { responseMessage = "" }, // Limpiar el mensaje de error
+                onClearError = { responseMessage = "" },
                 focusRequester = focusRequester,
                 navController = navController,
-               selectedDevice = selectedDevice, // Se pasa aquí
-               onDeviceSelected = { selectedDevice = it } // Callback para actualizar
+               selectedDevice = selectedDevice,
+               onDeviceSelected = { selectedDevice = it }
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -901,6 +901,7 @@ fun ButtonImprimir(
                         printDataToBluetoothDevice(
                             device,
                             dataPdf417,
+                            selectedItem,
                             context,
                             printerLanguage,
                             itemAnterior,
@@ -952,6 +953,7 @@ fun printDataToBluetoothDevice(
 
     device: BluetoothDevice,
     data: String,
+    selectedItem: String,
     context: Context,
     printerLanguage: String,
     itemNuevo: String,
@@ -961,9 +963,9 @@ fun printDataToBluetoothDevice(
 ) {
     val MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")
 
-    Log.d("printDataToBluetoothDevice", "Datos recibidos - itemNuevo: $itemNuevo, data: $data, cargador: $cargador")
+    Log.d("printDataToBluetoothDevice", "Datos recibidos - itemNuevo: $selectedItem, data: $data, cargador: $cargador")
 
-    val data2 = itemNuevo
+    val data2 = selectedItem
     val CodigoConcatenado2 = data
     val CodigocomercialNN2 = cargador
 
@@ -989,7 +991,7 @@ fun printDataToBluetoothDevice(
                 val outputStream = bluetoothSocket.outputStream
 
                 // Enviar los datos de impresión
-                Log.d("ETIQUETADO-Z", "Enviando datos de impresión: $CodigoConcatenado2")
+                Log.d("", "Enviando datos de impresión: $CodigoConcatenado2")
 
                 if (printerLanguage == "ZPL") {
                     val linea2 = "^XA\n " +
