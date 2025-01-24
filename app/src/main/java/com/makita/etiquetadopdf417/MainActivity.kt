@@ -14,7 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.makita.etiquetadopdf417.ui.component.etiquetado417.ImprimirEtiqueta
+
 
 import com.makita.etiquetadopdf417.ui.theme.EtiquetadoPDF417Theme
 
@@ -48,24 +48,6 @@ fun SetupNavGraph(navController: androidx.navigation.NavHostController) {
         // Agregamos la ruta para EtiquetadoScreen417
         composable("etiquetado") {
             EtiquetadoScreen417(navController)
-        }
-
-        composable("imprimir-etiqueta/{itemAnterior}/{serieDesde}/{serieHsasta}/{letraFabrica}/{ean}/{itemEquivalencia}/{cargador}/{bateria}")
-        { backStackEntry ->
-            val itemAnterior = backStackEntry.arguments?.getString("itemAnterior") ?: ""
-            val serieDesde = backStackEntry.arguments?.getString("serieDesde") ?: ""
-            val serieHasta = backStackEntry.arguments?.getString("serieHsasta") ?: ""
-            val letraFabrica = backStackEntry.arguments?.getString("letraFabrica") ?: ""
-            val ean = backStackEntry.arguments?.getString("ean") ?: ""
-
-
-            val itemEquivalencia = backStackEntry.arguments?.getString("itemEquivalencia") ?: ""
-            val cargador = backStackEntry.arguments?.getString("cargador") ?: ""
-            val bateria = backStackEntry.arguments?.getString("bateria") ?: ""
-
-
-            // Llamada al composable principal con los valores
-            ImprimirEtiqueta(navController , contexto = LocalContext.current, itemAnterior,serieDesde,serieHasta,letraFabrica,ean, itemEquivalencia ,cargador , bateria)
         }
 
     }
