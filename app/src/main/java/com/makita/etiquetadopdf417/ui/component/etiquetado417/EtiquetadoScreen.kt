@@ -53,20 +53,14 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
-import com.makita.etiquetadopdf417.RegistraBitacoraEquisZ
 import com.makita.etiquetadopdf417.RetrofitClient.apiService
 import com.makita.etiquetadopdf417.ui.theme.GreenMakita
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.BufferedWriter
 import java.io.File
-import java.io.FileWriter
 import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.UUID
 
 
@@ -426,6 +420,20 @@ fun EscanearCodigo(
     var selectedItem by remember { mutableStateOf("") }
     val scrollState = rememberScrollState()
 
+    val clearFields = {
+        onValueChange(TextFieldValue(""))
+        itemAnterior = ""
+        serieDesde = ""
+        serieHasta = ""
+        ean = ""
+        letraFabrica = ""
+        selectedItem = ""
+        cargador = ""
+        bateria = ""
+        onClearError() // Limpia cualquier mensaje de error adicional
+        isScanned = false
+    }
+
     Column(
       //  horizontalAlignment = Alignment.CenterHorizontally, // Alineación horizontal de los elementos
         verticalArrangement = Arrangement.spacedBy(1.dp), // Espaciado entre los elementos verticalmente
@@ -628,7 +636,9 @@ fun EscanearCodigo(
                     cargador  ,
                     bateria,
                     selectedDevice = selectedDevice,
-                    onDeviceSelected = onDeviceSelected
+                    onDeviceSelected = onDeviceSelected,
+                    onPrintSuccess = clearFields // Pasamos la función de limpieza
+
                 )
             }
         }
@@ -840,7 +850,8 @@ fun ButtonImprimir(
     cargador: String,
     bateria: String,
     selectedDevice: BluetoothDevice?,
-    onDeviceSelected: (BluetoothDevice?) -> Unit
+    onDeviceSelected: (BluetoothDevice?) -> Unit,
+    onPrintSuccess: () -> Unit
 ) {
     val (textoImpresion, dataPdf417) = prepararDatosImpresion(
         itemAnterior, serieDesde, serieHasta, letraFabrica, ean,
@@ -892,9 +903,12 @@ fun ButtonImprimir(
                             dataPdf417,
                             context,
                             printerLanguage,
-                            itemAnterior,cargador,
-
+                            itemAnterior,
+                            cargador,
+                            onPrintSuccess
                         )
+
+
 
 
                     }
@@ -942,6 +956,7 @@ fun printDataToBluetoothDevice(
     printerLanguage: String,
     itemNuevo: String,
     cargador: String,
+    onPrintSuccess: () -> Unit
 
 ) {
     val MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")
@@ -999,6 +1014,7 @@ fun printDataToBluetoothDevice(
                     outputStream.write(linea2.toByteArray(Charsets.US_ASCII))
                     outputStream.flush()
                     Log.d("Bluetooth", "Datos enviados correctamente.")
+                    onPrintSuccess()
 
                 }
 
