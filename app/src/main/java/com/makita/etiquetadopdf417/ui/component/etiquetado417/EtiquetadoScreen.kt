@@ -1058,10 +1058,8 @@ fun printDataToBluetoothDevice(
                     try {
                         val response = apiService.insertaDataEquisZ(bitacora)
 
-                            Log.d("API", "Datos insertados correctamente en la bitácora. $response")
-
-                            Log.e("API", "Error al insertar datos: $response")
-
+                        Log.d("API", "Datos insertados correctamente en la bitácora. $response")
+                        Log.e("API", "Error al insertar datos: $response")
                     } catch (e: Exception) {
                         Log.e("API", "Error al llamar al endpoint: ${e.message}")
                     }
