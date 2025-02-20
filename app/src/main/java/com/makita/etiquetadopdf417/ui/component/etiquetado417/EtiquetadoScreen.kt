@@ -80,6 +80,7 @@ fun EtiquetadoScreen417(navController: NavHostController) {
 
     val focusRequester = remember { FocusRequester() }
     var selectedDevice by remember { mutableStateOf<BluetoothDevice?>(null) }
+    var isLoading by remember { mutableStateOf(false) } // Estado para el loading
 
 
     LaunchedEffect(Unit) {
@@ -117,7 +118,10 @@ fun EtiquetadoScreen417(navController: NavHostController) {
                 }
             )
 
-           EscanearCodigo(
+            if (isLoading) {
+                LoadingIndicator()
+            }
+            EscanearCodigo(
                 text,
                 onValueChange = { newValue -> text = newValue },
                 responseMessage = responseMessage,
@@ -134,9 +138,12 @@ fun EtiquetadoScreen417(navController: NavHostController) {
                 focusRequester = focusRequester,
                 navController = navController,
                selectedDevice = selectedDevice,
-               onDeviceSelected = { selectedDevice = it }
+               onDeviceSelected = { selectedDevice = it },
+               isLoading = isLoading,
+               setLoading = { isLoading = it } // Pasamos la función para cambiar el estado
             )
             Spacer(modifier = Modifier.height(16.dp))
+
         }
     }
 }
@@ -405,7 +412,9 @@ fun EscanearCodigo(
     focusRequester: FocusRequester,
     navController : NavController,
     selectedDevice: BluetoothDevice?, // Agregamos el parámetro
-    onDeviceSelected: (BluetoothDevice?) -> Unit
+    onDeviceSelected: (BluetoothDevice?) -> Unit,
+    isLoading: Boolean,
+    setLoading: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
     var isScanned by remember { mutableStateOf(false) }
@@ -609,7 +618,6 @@ fun EscanearCodigo(
                     unfocusedBorderColor = GreenMakita,   // Borde sin enfoque en GreenMakita
                 )
             )
-
             Spacer(modifier = Modifier.height(16.dp))
 
             ClassicComboBox(
@@ -640,8 +648,9 @@ fun EscanearCodigo(
                     bateria,
                     selectedDevice = selectedDevice,
                     onDeviceSelected = onDeviceSelected,
-                    onPrintSuccess = clearFields // Pasamos la función de limpieza
-
+                    onPrintSuccess = clearFields, // Pasamos la función de limpieza
+                    isLoading = isLoading,      // Pasamos el estado
+                    setLoading = setLoading      // Pasamos la función de cambio de estado
                 )
             }
         }
@@ -854,7 +863,9 @@ fun ButtonImprimir(
     bateria: String,
     selectedDevice: BluetoothDevice?,
     onDeviceSelected: (BluetoothDevice?) -> Unit,
-    onPrintSuccess: () -> Unit
+    onPrintSuccess: () -> Unit,
+    isLoading: Boolean,
+    setLoading: (Boolean) -> Unit
 ) {
     val (textoImpresion, dataPdf417) = prepararDatosImpresion(
         itemAnterior, serieDesde, serieHasta, letraFabrica, ean,
@@ -893,7 +904,7 @@ fun ButtonImprimir(
         ExtendedFloatingActionButton(
             onClick = {
                 Log.d("ButtonImprimir", "Botón Imprimir presionado.")
-
+                setLoading(true)
                 if (hasBluetoothConnectPermission) {
                     Log.d("ButtonImprimir", "Permiso Bluetooth otorgado.")
 
@@ -914,7 +925,8 @@ fun ButtonImprimir(
                             ean ,
                             letraFabrica ,
                             bateria,
-                            onPrintSuccess
+                            onPrintSuccess,
+                            setLoading
                         )
 
 
@@ -982,7 +994,8 @@ fun printDataToBluetoothDevice(
     ean : String,
     letraFabrica :String,
     bateria: String,
-    onPrintSuccess: () -> Unit
+    onPrintSuccess: () -> Unit,
+    setLoading: (Boolean) -> Unit,
 
 
 ) {
@@ -1002,14 +1015,11 @@ fun printDataToBluetoothDevice(
     writeLogToFile(context, "Impresión - data2: $data2, CodigoConcatenado2: $CodigoConcatenado2, CodigocomercialNN2: $CodigocomercialNN2")
 
     CoroutineScope(Dispatchers.IO).launch {
+        val bluetoothSocket = device.createRfcommSocketToServiceRecord(MY_UUID)
+        bluetoothSocket.connect()
         try {
             // Conectar al dispositivo Bluetooth
             Log.d("Bluetooth", "Intentando conectar al dispositivo ${device.name}, dirección ${device.address}")
-
-
-            val bluetoothSocket = device.createRfcommSocketToServiceRecord(MY_UUID)
-            bluetoothSocket.connect()
-
             if (bluetoothSocket.isConnected) {
                 Log.d("Bluetooth", "Conexión exitosa.")
 
@@ -1072,6 +1082,7 @@ fun printDataToBluetoothDevice(
                     Log.d("ETIQUETADO-Z", "Impresión realizada con éxito.")
 
                     Toast.makeText(context, "Impresión Correcta", Toast.LENGTH_SHORT).show()
+                    setLoading(false)
 
 
 
@@ -1083,6 +1094,7 @@ fun printDataToBluetoothDevice(
                     Log.d("Bluetooth", "No se pudo conectar al dispositivo.")
                     writeLogToFile(context, "No se pudo conectar al dispositivo Bluetooth")
                     Toast.makeText(context, "No se pudo conectar al dispositivo Bluetooth", Toast.LENGTH_SHORT).show()
+
                 }
             }
         } catch (e: Exception) {
@@ -1090,10 +1102,11 @@ fun printDataToBluetoothDevice(
             writeLogToFile(context, "Error al enviar datos: ${e.message}")
             withContext(Dispatchers.Main) {
                 Toast.makeText(context, "Error al enviar datos: ${e.message}", Toast.LENGTH_SHORT).show()
+                setLoading(false)
             }
         } finally {
             try {
-                // bluetoothSocket.close()
+                bluetoothSocket.close()
                 Log.d("Bluetooth", "Socket cerrado.")
                 writeLogToFile(context, "Socket cerrado.")
             } catch (e: IOException) {
@@ -1138,12 +1151,30 @@ fun writeLogToFile(context: Context, logMessage: String) {
 }
 
 
-fun deleteLogFile(context: Context): Boolean {
-    val logFile = File(context.filesDir, "imprimir_logs.txt")
-    return if (logFile.exists()) {
-        logFile.delete()
-    } else {
-        false // Indica que el archivo no existía
+@Composable
+fun LoadingIndicator() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+
+            .wrapContentSize(Alignment.Center)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(60.dp), // Tamaño del indicador
+                color = Color(0xFF00909E), // Color personalizado
+                strokeWidth = 6.dp // Grosor del círculo
+            )
+            Spacer(modifier = Modifier.height(16.dp)) // Espaciado
+            Text(
+                text = "Cargando...",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
     }
 }
 
